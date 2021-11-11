@@ -1,0 +1,10 @@
+/MDK-ARM/DebugConfig/
+/MDK-ARM/RTE/
+/MDK-ARM/STM32F4_LwipPro/
+/MDK-ARM/*.scvd
+/MDK-ARM/*.txt
+/MDK-ARM/*.init
+/MDK-ARM/*.lst
+/MDK-ARM/*.uvguix
+/MDK-ARM/*.uvguix.*
+/MDK-ARM/*.uvoptx
