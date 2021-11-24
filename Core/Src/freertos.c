@@ -53,18 +53,27 @@ osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4
+  .stack_size = 128 * 4,
 };
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-osThreadId_t MqttTaskHandle;
+osThreadId_t mqttTaskHandle;
 const osThreadAttr_t MqttTask_attributes = {
   .name = "MqttTask",
   .priority = (osPriority_t) osPriorityHigh,
-  .stack_size = 1024 * 4
+  .stack_size = 1024 * 4,
 };
 extern void MqttTask(void *argument);
+
+/* LED Task Attr */
+osThreadId_t ledTaskHandle;
+const osThreadAttr_t g_LedTaskAttributes = {
+  .name = "led_task_name",
+  .priority = (osPriority_t) osPriorityNormal1,
+  .stack_size = 64 * 4,
+};
+extern void LedTask(void *argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
@@ -104,7 +113,8 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-  MqttTaskHandle = osThreadNew(MqttTask, NULL, &MqttTask_attributes);
+  mqttTaskHandle = osThreadNew(MqttTask, NULL, &MqttTask_attributes);
+  ledTaskHandle = osThreadNew(LedTask, NULL, &g_LedTaskAttributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

@@ -1,6 +1,10 @@
 #include "dev_sign_api.h"
 #include "mqtt_api.h"
 #include "cmsis_os.h"
+#include "led_task.h"
+
+#define LED_PARAM_STATUS "Status"
+#define LED_PARAM_COLORARR "ColorArr"
 
 char DEMO_PRODUCT_KEY[IOTX_PRODUCT_KEY_LEN + 1] = {0};
 char DEMO_DEVICE_NAME[IOTX_DEVICE_NAME_LEN + 1] = {0};
@@ -23,17 +27,105 @@ uintptr_t HAL_TCP_Establish(const char *host, uint16_t port);
         HAL_Printf("%s", "\r\n"); \
     } while(0)
 
+/* get jason item's value */
+int32_t core_json_value(const char *input, uint32_t input_len, const char *key, uint32_t key_len, char **value,
+                        uint32_t *value_len)
+{
+    uint32_t idx = 0;
+
+    for (idx = 0; idx < input_len; idx++) {
+        if (idx + key_len >= input_len) {
+            return -1;
+        }
+        if ((memcmp(&input[idx], key, key_len) == 0) &&
+            ((idx > 0) && (input[idx - 1] == '"')) &&
+            ((idx + key_len < input_len) && (input[idx + key_len] == '"'))) {
+            idx += key_len;
+            /* shortest ":x, or ":x} or ":x] */
+            if ((idx + 2 >= input_len) ||
+                (input[idx + 1] != ':')) {
+                return -1;
+            }
+            idx += 2;
+            if (input[idx] == '"') {
+                *value = (char *)&input[++idx];
+                for (; idx < input_len; idx++) {
+                    if ((input[idx] == '"')) {
+                        *value_len = (uint32_t)(idx - (*value - input));
+                        return 0;
+                    }
+                }
+            } else if (input[idx] == '{' || input[idx] == '[') {
+                char start = input[idx];
+                char end = (start == '{') ? ('}') : (']');
+                uint8_t count = 0;
+                *value = (char *)&input[idx];
+                for (; idx < input_len; idx++) {
+                    if ((input[idx] == start)) {
+                        count++;
+                    } else if ((input[idx] == end)) {
+                        if (--count == 0) {
+                            *value_len = (uint32_t)(idx - (*value - input) + 1);
+                            return 0;
+                        }
+                    }
+                }
+            } else {
+                *value = (char *)&input[idx];
+                for (; idx < input_len; idx++) {
+                    if ((input[idx] == ',' || input[idx] == ']' || input[idx] == '}')) {
+                        *value_len = (uint32_t)(idx - (*value - input));
+                        return 0;
+                    }
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+
+/* string convert to uint */
+int32_t core_str2uint(char *input, uint8_t input_len, uint32_t *output)
+{
+    uint8_t index = 0;
+    uint32_t temp = 0;
+
+    for (index = 0; index < input_len; index++) {
+        if (input[index] < '0' || input[index] > '9') {
+            return -1;
+        }
+        temp = temp * 10 + input[index] - '0';
+    }
+    *output = temp;
+
+    return 0;
+}
+
 void example_message_arrive(void *pcontext, void *pclient, iotx_mqtt_event_msg_pt msg)
 {
     iotx_mqtt_topic_info_t     *topic_info = (iotx_mqtt_topic_info_pt) msg->msg;
-
+    char *temp = NULL;
+	char *value = NULL;
+    uint32_t value_len = 0;
     switch (msg->event_type) {
         case IOTX_MQTT_EVENT_PUBLISH_RECEIVED:
             /* print topic name and topic message */
             EXAMPLE_TRACE("Message Arrived:");
             EXAMPLE_TRACE("Topic  : %.*s", topic_info->topic_len, topic_info->ptopic);
+		    temp = strrchr(topic_info->ptopic, '/');
             EXAMPLE_TRACE("Payload: %.*s", topic_info->payload_len, topic_info->payload);
             EXAMPLE_TRACE("\n");
+		    if (memcmp(temp + 1, "set", strlen("set")) == 0) {
+				if (core_json_value(topic_info->payload, topic_info->payload_len, LED_PARAM_STATUS, strlen(LED_PARAM_STATUS), &value,
+                        &value_len) == 0) {
+					core_str2uint(value, value_len, (uint32_t*)&ledInfo.ledStatus);
+				}
+				if (core_json_value(topic_info->payload, topic_info->payload_len, LED_PARAM_COLORARR, strlen(LED_PARAM_COLORARR), &value,
+                        &value_len) == 0) {
+					core_str2uint(value, value_len, (uint32_t*)&ledInfo.ledColor);
+				}
+			}
             break;
         default:
             break;
@@ -44,26 +136,32 @@ int example_subscribe(void *handle)
 {
     int res = 0;
     const char *fmt = "/%s/%s/user/get";
-    char *topic = NULL;
+    char topic[128] = {0};
     int topic_len = 0;
 
     topic_len = strlen(fmt) + strlen(DEMO_PRODUCT_KEY) + strlen(DEMO_DEVICE_NAME) + 1;
-    topic = HAL_Malloc(topic_len);
-    if (topic == NULL) {
-        EXAMPLE_TRACE("memory not enough");
-        return -1;
-    }
     memset(topic, 0, topic_len);
     HAL_Snprintf(topic, topic_len, fmt, DEMO_PRODUCT_KEY, DEMO_DEVICE_NAME);
 
     res = IOT_MQTT_Subscribe(handle, topic, IOTX_MQTT_QOS0, example_message_arrive, NULL);
     if (res < 0) {
         EXAMPLE_TRACE("subscribe failed");
-        HAL_Free(topic);
         return -1;
     }
 
-    HAL_Free(topic);
+	/* Subscribe module set property*/
+	fmt = "/sys/%s/%s/thing/service/property/set";
+    topic_len = strlen(fmt) + strlen(DEMO_PRODUCT_KEY) + strlen(DEMO_DEVICE_NAME) + 1;
+
+    memset(topic, 0, topic_len);
+    HAL_Snprintf(topic, topic_len, fmt, DEMO_PRODUCT_KEY, DEMO_DEVICE_NAME);
+
+    res = IOT_MQTT_Subscribe(handle, topic, IOTX_MQTT_QOS0, example_message_arrive, NULL);
+    if (res < 0) {
+        EXAMPLE_TRACE("subscribe failed");
+        return -1;
+    }
+
     return 0;
 }
 
@@ -71,27 +169,43 @@ int example_publish(void *handle)
 {
     int             res = 0;
     const char     *fmt = "/%s/%s/user/get";
-    char           *topic = NULL;
+    char            topic[128] = {0};
     int             topic_len = 0;
-    char           *payload = "{\"message\":\"hello!\"}";
+    char            payload[256] = {0};
+	int             payload_len = 0;
+    static float    humi = 15.0f;
+	static float    temp = 20.0f;
 
     topic_len = strlen(fmt) + strlen(DEMO_PRODUCT_KEY) + strlen(DEMO_DEVICE_NAME) + 1;
-    topic = HAL_Malloc(topic_len);
-    if (topic == NULL) {
-        EXAMPLE_TRACE("memory not enough");
-        return -1;
-    }
     memset(topic, 0, topic_len);
     HAL_Snprintf(topic, topic_len, fmt, DEMO_PRODUCT_KEY, DEMO_DEVICE_NAME);
-
-    res = IOT_MQTT_Publish_Simple(0, topic, IOTX_MQTT_QOS0, payload, strlen(payload));
+	payload_len = strlen("{\"Message\":Hello World!}");
+    memcpy(payload, "{\"Message\":Hello World!}", payload_len);
+    res = IOT_MQTT_Publish_Simple(0, topic, IOTX_MQTT_QOS0, payload, payload_len);
     if (res < 0) {
         EXAMPLE_TRACE("publish failed, res = %d", res);
-        HAL_Free(topic);
         return -1;
     }
 
-    HAL_Free(topic);
+	/* report temp-hum sensor data */
+	fmt = "/sys/%s/%s/thing/event/property/post/";
+	topic_len = strlen(fmt) + strlen(DEMO_PRODUCT_KEY) + strlen(DEMO_DEVICE_NAME) + 1;
+    memset(topic, 0, topic_len);
+    HAL_Snprintf(topic, topic_len, fmt, DEMO_PRODUCT_KEY, DEMO_DEVICE_NAME);
+	/* payload vsnprintf */
+	fmt = "{\"sys\":{\"ack\":0},\"params\":{\"TempHumSensor:Humidity\":%f,\"TempHumSensor:Temperature\":%f},\"method\":\"thing.event.property.post\"}";
+	payload_len = HAL_Snprintf(payload, sizeof(payload), fmt, humi++, temp++);
+    res = IOT_MQTT_Publish_Simple(0, topic, IOTX_MQTT_QOS0, payload, payload_len);
+    if (res < 0) {
+        EXAMPLE_TRACE("publish failed, res = %d", res);
+        return -1;
+    }
+	if (humi>100.0f) {
+		humi = 0;
+	}
+	if (temp>100.0f) {
+		temp = 0;
+	}
     return 0;
 }
 
@@ -213,7 +327,7 @@ void MqttTask(void *argument)
      *
      */
     mqtt_params.read_buf_size = 1024;
-	
+
 
     /**
      *
