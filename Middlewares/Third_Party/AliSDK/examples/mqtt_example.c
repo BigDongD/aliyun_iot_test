@@ -125,6 +125,8 @@ void example_message_arrive(void *pcontext, void *pclient, iotx_mqtt_event_msg_p
                         &value_len) == 0) {
 					core_str2uint(value, value_len, (uint32_t*)&ledInfo.ledColor);
 				}
+				extern osSemaphoreId ledStatusSemaphore;
+				osSemaphoreRelease(ledStatusSemaphore);
 			}
             break;
         default:

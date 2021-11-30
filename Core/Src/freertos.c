@@ -46,18 +46,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+osSemaphoreId ledStatusSemaphore = NULL;
 
-/* USER CODE END Variables */
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4,
-};
-
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN FunctionPrototypes */
 osThreadId_t mqttTaskHandle;
 const osThreadAttr_t MqttTask_attributes = {
   .name = "MqttTask",
@@ -74,6 +64,17 @@ const osThreadAttr_t g_LedTaskAttributes = {
   .stack_size = 64 * 4,
 };
 extern void LedTask(void *argument);
+/* USER CODE END Variables */
+/* Definitions for defaultTask */
+osThreadId_t defaultTaskHandle;
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .priority = (osPriority_t) osPriorityNormal,
+  .stack_size = 128 * 4,
+};
+
+/* Private function prototypes -----------------------------------------------*/
+/* USER CODE BEGIN FunctionPrototypes */
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
@@ -96,6 +97,7 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
+  ledStatusSemaphore = osSemaphoreNew(1, 1, NULL);
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
