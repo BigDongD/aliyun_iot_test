@@ -46,7 +46,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-osSemaphoreId ledStatusSemaphore = NULL;
+osMutexId_t ledCtrlMutex = NULL;
+osMutexId_t beepCtrlMutex = NULL;
 
 osThreadId_t mqttTaskHandle;
 const osThreadAttr_t MqttTask_attributes = {
@@ -64,6 +65,16 @@ const osThreadAttr_t g_LedTaskAttributes = {
   .stack_size = 64 * 4,
 };
 extern void LedTask(void *argument);
+
+/* BEEP Task Attr */
+osThreadId_t beepTaskHandle;
+const osThreadAttr_t g_BeepTaskAttributes = {
+  .name = "beep_task_name",
+  .priority = (osPriority_t) osPriorityNormal1,
+  .stack_size = 64 * 4,
+};
+extern void BeepTask(void *argument);
+
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -94,10 +105,12 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
+  ledCtrlMutex = osMutexNew(NULL);
+  beepCtrlMutex = osMutexNew(NULL);
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  ledStatusSemaphore = osSemaphoreNew(1, 1, NULL);
+  
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
 
@@ -117,6 +130,7 @@ void MX_FREERTOS_Init(void) {
   /* add threads, ... */
   mqttTaskHandle = osThreadNew(MqttTask, NULL, &MqttTask_attributes);
   ledTaskHandle = osThreadNew(LedTask, NULL, &g_LedTaskAttributes);
+  beepTaskHandle = osThreadNew(BeepTask, NULL, &g_BeepTaskAttributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

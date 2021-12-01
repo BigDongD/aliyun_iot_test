@@ -2,6 +2,7 @@
 #include "mqtt_api.h"
 #include "cmsis_os.h"
 #include "led_task.h"
+#include "beep_task.h"
 
 #define LED_PARAM_STATUS "Status"
 #define LED_PARAM_COLORARR "ColorArr"
@@ -26,6 +27,9 @@ uintptr_t HAL_TCP_Establish(const char *host, uint16_t port);
         HAL_Printf(fmt, ##__VA_ARGS__); \
         HAL_Printf("%s", "\r\n"); \
     } while(0)
+
+extern osMutexId_t ledCtrlMutex;
+extern osMutexId_t beepCtrlMutex;
 
 /* get jason item's value */
 int32_t core_json_value(const char *input, uint32_t input_len, const char *key, uint32_t key_len, char **value,
@@ -119,14 +123,12 @@ void example_message_arrive(void *pcontext, void *pclient, iotx_mqtt_event_msg_p
 		    if (memcmp(temp + 1, "set", strlen("set")) == 0) {
 				if (core_json_value(topic_info->payload, topic_info->payload_len, LED_PARAM_STATUS, strlen(LED_PARAM_STATUS), &value,
                         &value_len) == 0) {
-					core_str2uint(value, value_len, (uint32_t*)&ledInfo.ledStatus);
+					core_str2uint(value, value_len, (uint32_t*)&g_LedInfo.ledStatus);
 				}
 				if (core_json_value(topic_info->payload, topic_info->payload_len, LED_PARAM_COLORARR, strlen(LED_PARAM_COLORARR), &value,
                         &value_len) == 0) {
-					core_str2uint(value, value_len, (uint32_t*)&ledInfo.ledColor);
+					core_str2uint(value, value_len, (uint32_t*)&g_LedInfo.ledColor);
 				}
-				extern osSemaphoreId ledStatusSemaphore;
-				osSemaphoreRelease(ledStatusSemaphore);
 			}
             break;
         default:
@@ -359,7 +361,7 @@ void MqttTask(void *argument)
         }
 
         IOT_MQTT_Yield(pclient, 200);
-
+		osDelay(200);
         loop_cnt += 1;
     }
 }

@@ -6,7 +6,7 @@ extern void LedTask(void *argument);
 typedef enum {
 	LED_RED = 0,
 	LED_GREEN  = 1,
-	LED_COLOR_MAX,
+	LED_COLOR_DEFAULT,
 }LedColor_e;
 
 typedef enum {
@@ -14,7 +14,7 @@ typedef enum {
 	LED_ON = 1,
 	LED_BLINK = 2,
 	LED_GRADIENT = 3,
-	LED_STATUS_MAX,
+	LED_STATUS_DEFAULT,
 }LedStatus_e;
 
 typedef struct {
@@ -22,6 +22,6 @@ typedef struct {
 	LedStatus_e ledStatus;
 }LedManage_s;
 
-extern LedManage_s ledInfo; 
+extern LedManage_s g_LedInfo; 
 
 #endif
